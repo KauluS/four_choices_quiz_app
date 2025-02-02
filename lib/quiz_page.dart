@@ -312,8 +312,7 @@ class QuizPageState extends State<QuizPage>
                   borderRadius: BorderRadius.circular(8),
                   child: LinearProgressIndicator(
                     value: timeLeft,
-                    // ignore: deprecated_member_use
-                    backgroundColor: Colors.white.withOpacity(0.3),
+                    backgroundColor: Colors.white.withValues(alpha: 0.3 * 255),
                     color: Colors.white,
                     minHeight: 8,
                   ),

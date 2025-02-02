@@ -312,8 +312,7 @@ class EditPageState extends State<EditPage> {
                                   ],
                                 ),
                                 selected: selectedQuiz?.id == quiz.id,
-                                // ignore: deprecated_member_use
-                                selectedTileColor: Colors.blue.withOpacity(0.1),
+                                selectedTileColor: Colors.blue.withValues(alpha: 0.1 * 255),
                               );
                             },
                           ),
