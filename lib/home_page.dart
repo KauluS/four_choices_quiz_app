@@ -47,8 +47,7 @@ class HomePage extends StatelessWidget {
                         'Test your English knowledge',
                         style: TextStyle(
                           fontSize: 16,
-                          // ignore: deprecated_member_use
-                          color: Colors.white.withOpacity(0.9),
+                          color: Colors.white.withValues(alpha: 0.9 * 255),
                         ),
                       ),
                       const SizedBox(height: 48),
