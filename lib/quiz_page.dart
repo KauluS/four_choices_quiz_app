@@ -31,20 +31,41 @@ class QuizPageState extends State<QuizPage>
   }
 
   Future<void> fetchQuestions() async {
-    final dbHelper = DatabaseHelper.instance;
-    final fetchedQuestions = await dbHelper.queryAllRows();
-    if (mounted) {
-      setState(() {
-        questions = fetchedQuestions;
-      });
-      if (questions.isNotEmpty) {
-        startTimer();
+    try {
+      final dbHelper = DatabaseHelper.instance;
+      final fetchedQuestions = await dbHelper.queryAllRows();
+      if (mounted) {
+        setState(() {
+          questions = fetchedQuestions;
+        });
+        if (questions.isNotEmpty) {
+          startTimer();
+        }
+      }
+    } catch (e) {
+      // DBから問題の取得に失敗した場合のエラーダイアログ
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: const Text('Error'),
+            content: Text('Failed to load questions: $e'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
       }
     }
   }
 
   void startTimer() {
     timeLeft = 1.0;
+    timer?.cancel();
     timer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
       if (mounted) {
         setState(() {
@@ -176,7 +197,8 @@ class QuizPageState extends State<QuizPage>
   }
 
   void showEndDialog() {
-    final percentage = (score / questions.length * 100).round();
+    final percentage =
+        questions.isNotEmpty ? (score / questions.length * 100).round() : 0;
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -237,6 +259,7 @@ class QuizPageState extends State<QuizPage>
 
   @override
   Widget build(BuildContext context) {
+    // DBからの問題取得中や問題が0件の場合はローディング画面／エラーメッセージを表示
     if (questions.isEmpty) {
       return Scaffold(
         body: Container(
@@ -265,7 +288,20 @@ class QuizPageState extends State<QuizPage>
     }
 
     final question = questions[currentQuestionIndex];
-    final options = question.options.split(',');
+    // ここでは「|」で分割する（編集画面での保存形式と合わせる）
+    final options = question.options.split('|');
+
+    // オプションが4件でない場合はエラーメッセージを表示（エラーハンドリング）
+    if (options.length != 4) {
+      return Scaffold(
+        body: Center(
+          child: Text(
+            'Invalid options format for this question.',
+            style: TextStyle(fontSize: 18, color: Colors.red.shade700),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       body: Container(
@@ -282,6 +318,7 @@ class QuizPageState extends State<QuizPage>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // ヘッダー部分
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -312,12 +349,13 @@ class QuizPageState extends State<QuizPage>
                   borderRadius: BorderRadius.circular(8),
                   child: LinearProgressIndicator(
                     value: timeLeft,
-                    backgroundColor: Colors.white.withValues(alpha: 0.3 * 255),
+                    backgroundColor: const Color.fromRGBO(255, 255, 255, 0.3),
                     color: Colors.white,
                     minHeight: 8,
                   ),
                 ),
                 const SizedBox(height: 32),
+                // 質問カード
                 Card(
                   elevation: 8,
                   shape: RoundedRectangleBorder(
@@ -336,33 +374,41 @@ class QuizPageState extends State<QuizPage>
                   ),
                 ),
                 const SizedBox(height: 32),
-                ...options.map((option) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 12.0),
-                    child: ElevatedButton(
-                      onPressed: isAnswered ? null : () => checkAnswer(option),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: Colors.blue.shade700,
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 16,
-                          horizontal: 24,
+                // オプション選択肢を2列のグリッドで表示（スクロール可能）
+                Expanded(
+                  child: GridView.count(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 3.5,
+                    children: options.map((option) {
+                      return ElevatedButton(
+                        onPressed:
+                            isAnswered ? null : () => checkAnswer(option),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: Colors.blue.shade700,
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 16,
+                            horizontal: 24,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 4,
                         ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                        child: Text(
+                          option,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                        elevation: 4,
-                      ),
-                      child: Text(
-                        option,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  );
-                }),
+                      );
+                    }).toList(),
+                  ),
+                ),
               ],
             ),
           ),

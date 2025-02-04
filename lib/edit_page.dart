@@ -11,9 +11,15 @@ class EditPage extends StatefulWidget {
 
 class EditPageState extends State<EditPage> {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
+
   final TextEditingController questionController = TextEditingController();
-  final TextEditingController optionsController = TextEditingController();
-  final TextEditingController answerController = TextEditingController();
+  final TextEditingController option1Controller = TextEditingController();
+  final TextEditingController option2Controller = TextEditingController();
+  final TextEditingController option3Controller = TextEditingController();
+  final TextEditingController option4Controller = TextEditingController();
+
+  // 選択された正解のインデックス（0～3）
+  int? selectedOptionIndex;
 
   List<Quiz> quizzes = [];
   Quiz? selectedQuiz;
@@ -42,10 +48,30 @@ class EditPageState extends State<EditPage> {
   void _clearFields() {
     setState(() {
       questionController.clear();
-      optionsController.clear();
-      answerController.clear();
+      option1Controller.clear();
+      option2Controller.clear();
+      option3Controller.clear();
+      option4Controller.clear();
+      selectedOptionIndex = null;
       selectedQuiz = null;
     });
+  }
+
+  bool _validateInputs() {
+    if (questionController.text.trim().isEmpty ||
+        option1Controller.text.trim().isEmpty ||
+        option2Controller.text.trim().isEmpty ||
+        option3Controller.text.trim().isEmpty ||
+        option4Controller.text.trim().isEmpty) {
+      _showErrorDialog(
+          'Please fill in all fields for question and all options.');
+      return false;
+    }
+    if (selectedOptionIndex == null) {
+      _showErrorDialog('Please select the correct answer.');
+      return false;
+    }
+    return true;
   }
 
   Future<void> _insert() async {
@@ -53,10 +79,20 @@ class EditPageState extends State<EditPage> {
 
     setState(() => isLoading = true);
     try {
+      final optionsList = [
+        option1Controller.text.trim(),
+        option2Controller.text.trim(),
+        option3Controller.text.trim(),
+        option4Controller.text.trim(),
+      ];
+      // 正解は選択されたoptionの内容
+      final answer = optionsList[selectedOptionIndex!];
+
       final quiz = Quiz(
         question: questionController.text.trim(),
-        options: optionsController.text.trim(),
-        answer: answerController.text.trim(),
+        // DBには"|"で区切って保存
+        options: optionsList.join('|'),
+        answer: answer,
       );
       await _dbHelper.insert(quiz);
       await _loadQuizzes();
@@ -74,11 +110,19 @@ class EditPageState extends State<EditPage> {
 
     setState(() => isLoading = true);
     try {
+      final optionsList = [
+        option1Controller.text.trim(),
+        option2Controller.text.trim(),
+        option3Controller.text.trim(),
+        option4Controller.text.trim(),
+      ];
+      final answer = optionsList[selectedOptionIndex!];
+
       final updatedQuiz = Quiz(
         id: quiz.id,
         question: questionController.text.trim(),
-        options: optionsController.text.trim(),
-        answer: answerController.text.trim(),
+        options: optionsList.join('|'),
+        answer: answer,
       );
       await _dbHelper.update(updatedQuiz);
       await _loadQuizzes();
@@ -103,16 +147,6 @@ class EditPageState extends State<EditPage> {
     } finally {
       setState(() => isLoading = false);
     }
-  }
-
-  bool _validateInputs() {
-    if (questionController.text.trim().isEmpty ||
-        optionsController.text.trim().isEmpty ||
-        answerController.text.trim().isEmpty) {
-      _showErrorDialog('Please fill in all fields');
-      return false;
-    }
-    return true;
   }
 
   void _showSnackBar(String message) {
@@ -161,8 +195,27 @@ class EditPageState extends State<EditPage> {
     );
   }
 
+  /// 入力欄へ既存のQuizデータをセットする
+  void _populateFields(Quiz quiz) {
+    questionController.text = quiz.question;
+    // 保存時はoptionsを"|"で結合しているので、splitして各コントローラーへ設定
+    final optionsList = quiz.options.split('|');
+    if (optionsList.length != 4) {
+      _showErrorDialog('The options format is invalid for this quiz.');
+      return;
+    }
+    option1Controller.text = optionsList[0];
+    option2Controller.text = optionsList[1];
+    option3Controller.text = optionsList[2];
+    option4Controller.text = optionsList[3];
+    // answerと各optionを比較し、一致するインデックスをselectedOptionIndexに設定
+    final index = optionsList.indexWhere((option) => option == quiz.answer);
+    selectedOptionIndex = index >= 0 ? index : null;
+  }
+
   @override
   Widget build(BuildContext context) {
+    // 横並びにするため、Rowでフォームと一覧を並べる
     return Scaffold(
       appBar: AppBar(
         title: const Text('Edit Questions'),
@@ -178,144 +231,187 @@ class EditPageState extends State<EditPage> {
         children: [
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            child: Row(
               children: [
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      children: [
-                        TextField(
-                          controller: questionController,
-                          decoration: const InputDecoration(
-                            labelText: 'Question',
-                            border: OutlineInputBorder(),
-                            hintText: 'Enter the question',
-                          ),
-                          maxLines: 2,
-                        ),
-                        const SizedBox(height: 16),
-                        TextField(
-                          controller: optionsController,
-                          decoration: const InputDecoration(
-                            labelText: 'Options',
-                            border: OutlineInputBorder(),
-                            hintText: 'Enter options separated by commas',
-                          ),
-                          maxLines: 2,
-                        ),
-                        const SizedBox(height: 16),
-                        TextField(
-                          controller: answerController,
-                          decoration: const InputDecoration(
-                            labelText: 'Answer',
-                            border: OutlineInputBorder(),
-                            hintText: 'Enter the correct answer',
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                // 入力フォーム側
+                Expanded(
+                  flex: 1,
+                  child: Card(
+                    elevation: 3,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            ElevatedButton.icon(
-                              icon: const Icon(Icons.add),
-                              label: const Text('Add'),
-                              onPressed: !isLoading && selectedQuiz == null
-                                  ? _insert
-                                  : null,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green,
-                                foregroundColor: Colors.white,
+                            // 質問入力
+                            TextField(
+                              controller: questionController,
+                              decoration: const InputDecoration(
+                                labelText: 'Question',
+                                border: OutlineInputBorder(),
+                                hintText: 'Enter the question',
                               ),
+                              maxLines: 2,
                             ),
-                            ElevatedButton.icon(
-                              icon: const Icon(Icons.edit),
-                              label: const Text('Update'),
-                              onPressed: !isLoading && selectedQuiz != null
-                                  ? () => _update(selectedQuiz!)
-                                  : null,
+                            const SizedBox(height: 16),
+                            // 4つのOption入力欄＋ラジオボタン
+                            for (int i = 0; i < 4; i++)
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 4.0),
+                                child: Row(
+                                  children: [
+                                    Radio<int>(
+                                      value: i,
+                                      groupValue: selectedOptionIndex,
+                                      onChanged: (value) {
+                                        setState(() {
+                                          selectedOptionIndex = value;
+                                        });
+                                      },
+                                    ),
+                                    Expanded(
+                                      child: TextField(
+                                        controller: i == 0
+                                            ? option1Controller
+                                            : i == 1
+                                                ? option2Controller
+                                                : i == 2
+                                                    ? option3Controller
+                                                    : option4Controller,
+                                        decoration: InputDecoration(
+                                          labelText: 'Option ${i + 1}',
+                                          border: const OutlineInputBorder(),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            const SizedBox(height: 16),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                ElevatedButton.icon(
+                                  icon: const Icon(Icons.add),
+                                  label: const Text('Add'),
+                                  onPressed: !isLoading && selectedQuiz == null
+                                      ? _insert
+                                      : null,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.green,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                ),
+                                ElevatedButton.icon(
+                                  icon: const Icon(Icons.edit),
+                                  label: const Text('Update'),
+                                  onPressed: !isLoading && selectedQuiz != null
+                                      ? () => _update(selectedQuiz!)
+                                      : null,
+                                ),
+                              ],
                             ),
                           ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  'Questions List (${quizzes.length})',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
+                const SizedBox(width: 16),
+                // クイズ一覧側
                 Expanded(
+                  flex: 1,
                   child: Card(
-                    child: quizzes.isEmpty
-                        ? const Center(
-                            child: Text('No questions registered'),
-                          )
-                        : ListView.separated(
-                            itemCount: quizzes.length,
-                            separatorBuilder: (_, __) => const Divider(),
-                            itemBuilder: (context, index) {
-                              final quiz = quizzes[index];
-                              return ListTile(
-                                title: Text(
-                                  quiz.question,
-                                  style: TextStyle(
-                                    fontWeight: selectedQuiz?.id == quiz.id
-                                        ? FontWeight.bold
-                                        : FontWeight.normal,
-                                  ),
-                                ),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('Options: ${quiz.options}'),
-                                    Text('Answer: ${quiz.answer}'),
-                                  ],
-                                ),
-                                leading: CircleAvatar(
-                                  child: Text('${index + 1}'),
-                                ),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.edit),
-                                      onPressed: !isLoading
-                                          ? () {
-                                              setState(() {
-                                                selectedQuiz = quiz;
-                                                questionController.text =
-                                                    quiz.question;
-                                                optionsController.text =
-                                                    quiz.options;
-                                                answerController.text =
-                                                    quiz.answer;
-                                              });
-                                            }
-                                          : null,
-                                      tooltip: 'Edit',
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.delete),
-                                      color: Colors.red,
-                                      onPressed: !isLoading
-                                          ? () => _showDeleteConfirmDialog(quiz)
-                                          : null,
-                                      tooltip: 'Delete',
-                                    ),
-                                  ],
-                                ),
-                                selected: selectedQuiz?.id == quiz.id,
-                                selectedTileColor: Colors.blue.withValues(alpha: 0.1 * 255),
-                              );
-                            },
+                    elevation: 3,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            'Questions List (${quizzes.length})',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
+                          const SizedBox(height: 8),
+                          Expanded(
+                            child: quizzes.isEmpty
+                                ? const Center(
+                                    child: Text('No questions registered'),
+                                  )
+                                : ListView.separated(
+                                    itemCount: quizzes.length,
+                                    separatorBuilder: (_, __) =>
+                                        const Divider(),
+                                    itemBuilder: (context, index) {
+                                      final quiz = quizzes[index];
+                                      // オプションを"|"で分割してリスト表示
+                                      final optionsList =
+                                          quiz.options.split('|');
+                                      return ListTile(
+                                        title: Text(
+                                          quiz.question,
+                                          style: TextStyle(
+                                            fontWeight:
+                                                selectedQuiz?.id == quiz.id
+                                                    ? FontWeight.bold
+                                                    : FontWeight.normal,
+                                          ),
+                                        ),
+                                        subtitle: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            for (int i = 0;
+                                                i < optionsList.length;
+                                                i++)
+                                              Text('${i + 1}. ${optionsList[i]}'
+                                                  '${optionsList[i] == quiz.answer ? " (Answer)" : ""}'),
+                                          ],
+                                        ),
+                                        leading: CircleAvatar(
+                                          child: Text('${index + 1}'),
+                                        ),
+                                        trailing: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            IconButton(
+                                              icon: const Icon(Icons.edit),
+                                              onPressed: !isLoading
+                                                  ? () {
+                                                      setState(() {
+                                                        selectedQuiz = quiz;
+                                                        _populateFields(quiz);
+                                                      });
+                                                    }
+                                                  : null,
+                                              tooltip: 'Edit',
+                                            ),
+                                            IconButton(
+                                              icon: const Icon(Icons.delete),
+                                              color: Colors.red,
+                                              onPressed: !isLoading
+                                                  ? () =>
+                                                      _showDeleteConfirmDialog(
+                                                          quiz)
+                                                  : null,
+                                              tooltip: 'Delete',
+                                            ),
+                                          ],
+                                        ),
+                                        selected: selectedQuiz?.id == quiz.id,
+                                        selectedTileColor: const Color.fromRGBO(0, 0, 255, 0.1),
+                                      );
+                                    },
+                                  ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -336,8 +432,10 @@ class EditPageState extends State<EditPage> {
   @override
   void dispose() {
     questionController.dispose();
-    optionsController.dispose();
-    answerController.dispose();
+    option1Controller.dispose();
+    option2Controller.dispose();
+    option3Controller.dispose();
+    option4Controller.dispose();
     super.dispose();
   }
 }

@@ -47,7 +47,7 @@ class HomePage extends StatelessWidget {
                         'Test your English knowledge',
                         style: TextStyle(
                           fontSize: 16,
-                          color: Colors.white.withValues(alpha: 0.9 * 255),
+                          color: const Color.fromRGBO(255, 255, 255, 0.9),
                         ),
                       ),
                       const SizedBox(height: 48),
