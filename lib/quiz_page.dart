@@ -259,7 +259,10 @@ class QuizPageState extends State<QuizPage>
 
   @override
   Widget build(BuildContext context) {
-    // DBからの問題取得中や問題が0件の場合はローディング画面／エラーメッセージを表示
+    // 画面幅に応じたレイアウト切替（600px未満＝スマートフォン、600px以上＝PC）
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
+
     if (questions.isEmpty) {
       return Scaffold(
         body: Container(
@@ -288,10 +291,10 @@ class QuizPageState extends State<QuizPage>
     }
 
     final question = questions[currentQuestionIndex];
-    // ここでは「|」で分割する（編集画面での保存形式と合わせる）
+    // 編集画面と同様に「|」で分割する
     final options = question.options.split('|');
 
-    // オプションが4件でない場合はエラーメッセージを表示（エラーハンドリング）
+    // オプションが4件でない場合はエラーメッセージを表示
     if (options.length != 4) {
       return Scaffold(
         body: Center(
@@ -302,6 +305,9 @@ class QuizPageState extends State<QuizPage>
         ),
       );
     }
+
+    // スマートフォンの場合は GridView の childAspectRatio やレイアウトを調整
+    double gridChildAspectRatio = isMobile ? 2.5 : 3.5;
 
     return Scaffold(
       body: Container(
@@ -374,13 +380,13 @@ class QuizPageState extends State<QuizPage>
                   ),
                 ),
                 const SizedBox(height: 32),
-                // オプション選択肢を2列のグリッドで表示（スクロール可能）
+                // オプション選択肢（2列のグリッド、画面サイズに応じて childAspectRatio を調整）
                 Expanded(
                   child: GridView.count(
                     crossAxisCount: 2,
                     crossAxisSpacing: 16,
                     mainAxisSpacing: 16,
-                    childAspectRatio: 3.5,
+                    childAspectRatio: gridChildAspectRatio,
                     children: options.map((option) {
                       return ElevatedButton(
                         onPressed:
