@@ -374,7 +374,8 @@ class EditPageState extends State<EditPage> {
                             ],
                           ),
                           selected: selectedQuiz?.id == quiz.id,
-                          selectedTileColor: const Color.fromRGBO(0, 0, 255, 0.1),
+                          selectedTileColor:
+                              const Color.fromRGBO(0, 0, 255, 0.1),
                         );
                       },
                     ),
@@ -395,35 +396,50 @@ class EditPageState extends State<EditPage> {
           ),
         ],
       ),
-      body: Stack(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            // レスポンシブにレイアウト切替
-            child: isMobile
-                ? Column(
-                    children: [
-                      formWidget,
-                      const SizedBox(height: 16),
-                      Expanded(child: listWidget),
-                    ],
-                  )
-                : Row(
-                    children: [
-                      Expanded(flex: 1, child: formWidget),
-                      const SizedBox(width: 16),
-                      Expanded(flex: 1, child: listWidget),
-                    ],
-                  ),
-          ),
-          if (isLoading)
-            Container(
-              color: const Color.fromRGBO(0, 0, 0, 0.26),
-              child: const Center(
-                child: CircularProgressIndicator(),
-              ),
+      // Scaffoldにこのプロパティを設定（trueがデフォルトなので省略可能ですが、明示的に設定してもOK）
+      resizeToAvoidBottomInset: true,
+      body: SingleChildScrollView(
+        // キーボードが出たときの高さ分だけ下部に余白を追加
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+          left: 16.0,
+          right: 16.0,
+          top: 16.0,
+        ),
+        child: Stack(
+          children: [
+            // 既存のウィジェットツリー
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16.0),
+              child: isMobile
+                  ? Column(
+                      children: [
+                        formWidget,
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          // キーボード表示時にリスト部分がオーバーフローしないように高さを調整
+                          height: MediaQuery.of(context).size.height * 0.4,
+                          child: listWidget,
+                        ),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        Expanded(flex: 1, child: formWidget),
+                        const SizedBox(width: 16),
+                        Expanded(flex: 1, child: listWidget),
+                      ],
+                    ),
             ),
-        ],
+            if (isLoading)
+              Container(
+                color: const Color.fromRGBO(0, 0, 0, 0.26),
+                child: const Center(
+                  child: CircularProgressIndicator(),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
