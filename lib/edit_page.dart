@@ -216,7 +216,7 @@ class EditPageState extends State<EditPage> {
   Widget build(BuildContext context) {
     // 画面幅に応じたレイアウト切替（600px未満＝スマートフォン、600px以上＝PC）
     final screenWidth = MediaQuery.of(context).size.width;
-    final isMobile = screenWidth < 600;
+    final isMobile = screenWidth <= 600;
 
     // 入力フォーム部分
     Widget formWidget = Card(
