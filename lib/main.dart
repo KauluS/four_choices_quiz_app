@@ -11,6 +11,7 @@ class QuizApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      title: 'Four Choices Quiz',
       debugShowCheckedModeBanner: false,
       home: const HomePage(),
     );

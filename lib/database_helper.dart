@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 import 'model.dart';
 
 class DatabaseHelper {
@@ -38,21 +40,31 @@ class DatabaseHelper {
 
   // データベースを初期化する非同期メソッド
   Future<Database> _initDatabase() async {
-    // データベースのパスを作成
-    String path =
-        join((await getApplicationDocumentsDirectory()).path, _databaseName);
-
-    // デスクトップ環境の場合はsqflite_common_ffiを使用
-    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-      sqfliteFfiInit();
-      var databaseFactory = databaseFactoryFfi;
-      return await databaseFactory.openDatabase(path,
+    // Web環境の場合
+    if (kIsWeb) {
+      var databaseFactory = databaseFactoryFfiWeb;
+      // Webではパスとしてデータベース名のみを使用（IndexedDB上に保存）
+      return await databaseFactory.openDatabase(_databaseName,
           options: OpenDatabaseOptions(
             version: _databaseVersion,
             onCreate: _onCreate,
           ));
+    }
+
+    final directory = await getApplicationDocumentsDirectory();
+    final path = join(directory.path, _databaseName);
+
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      sqfliteFfiInit();
+      var databaseFactory = databaseFactoryFfi;
+      return await databaseFactory.openDatabase(
+        path,
+        options: OpenDatabaseOptions(
+          version: _databaseVersion,
+          onCreate: _onCreate,
+        ),
+      );
     } else {
-      // モバイル環境の場合はsqfliteを使用
       return await openDatabase(
         path,
         version: _databaseVersion,

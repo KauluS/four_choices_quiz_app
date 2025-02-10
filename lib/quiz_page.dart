@@ -38,12 +38,14 @@ class QuizPageState extends State<QuizPage>
         setState(() {
           questions = fetchedQuestions;
         });
-        if (questions.isNotEmpty) {
+        if (questions.isEmpty) {
+          showNoQuestionsDialog();
+        } else {
           startTimer();
         }
       }
     } catch (e) {
-      // DBから問題の取得に失敗した場合のエラーダイアログ
+      // Handle error if fetching fails
       if (mounted) {
         showDialog(
           context: context,
@@ -61,6 +63,30 @@ class QuizPageState extends State<QuizPage>
         );
       }
     }
+  }
+
+  void showNoQuestionsDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text('No Questions Found'),
+        content:
+            const Text('The database is empty. Please add questions first.'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pop();
+            },
+            child: const Text('Back to Home'),
+          ),
+        ],
+      ),
+    );
   }
 
   void startTimer() {
@@ -259,11 +285,12 @@ class QuizPageState extends State<QuizPage>
 
   @override
   Widget build(BuildContext context) {
-    // 画面幅に応じたレイアウト切替（600px未満＝スマートフォン、600px以上＝PC）
+    // Adjust layout based on screen width (mobile or PC)
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = screenWidth < 600;
 
     if (questions.isEmpty) {
+      // While fetching questions or after no questions, show a loading view
       return Scaffold(
         body: Container(
           decoration: BoxDecoration(
@@ -291,10 +318,9 @@ class QuizPageState extends State<QuizPage>
     }
 
     final question = questions[currentQuestionIndex];
-    // 編集画面と同様に「|」で分割する
     final options = question.options.split('|');
 
-    // オプションが4件でない場合はエラーメッセージを表示
+    // Show error if options are not formatted as expected.
     if (options.length != 4) {
       return Scaffold(
         body: Center(
@@ -306,7 +332,6 @@ class QuizPageState extends State<QuizPage>
       );
     }
 
-    // スマートフォンの場合は GridView の childAspectRatio やレイアウトを調整
     double gridChildAspectRatio = isMobile ? 2.5 : 3.5;
 
     return Scaffold(
@@ -324,7 +349,7 @@ class QuizPageState extends State<QuizPage>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // ヘッダー部分
+                // Header
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -361,7 +386,7 @@ class QuizPageState extends State<QuizPage>
                   ),
                 ),
                 const SizedBox(height: 32),
-                // 質問カード
+                // Question Card
                 Card(
                   elevation: 8,
                   shape: RoundedRectangleBorder(
@@ -380,7 +405,7 @@ class QuizPageState extends State<QuizPage>
                   ),
                 ),
                 const SizedBox(height: 32),
-                // オプション選択肢（2列のグリッド、画面サイズに応じて childAspectRatio を調整）
+                // Options grid
                 Expanded(
                   child: GridView.count(
                     crossAxisCount: 2,

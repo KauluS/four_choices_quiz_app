@@ -2,15 +2,17 @@ import 'package:flutter/material.dart';
 import 'database_helper.dart';
 import 'model.dart';
 
-class EditPage extends StatefulWidget {
+/// 共通のロジックやUI部品を含む抽象クラス
+abstract class EditPage extends StatefulWidget {
   const EditPage({super.key});
-
-  @override
-  EditPageState createState() => EditPageState();
 }
 
-class EditPageState extends State<EditPage> {
+/// 共通の状態管理ロジック
+abstract class EditPageState<T extends EditPage> extends State<T> {
+  // データベースヘルパー
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
+
+  // テキストフィールド用コントローラー
   final TextEditingController questionController = TextEditingController();
   final TextEditingController option1Controller = TextEditingController();
   final TextEditingController option2Controller = TextEditingController();
@@ -22,7 +24,6 @@ class EditPageState extends State<EditPage> {
 
   List<Quiz> quizzes = [];
   Quiz? selectedQuiz;
-  bool isLoading = false;
 
   @override
   void initState() {
@@ -31,16 +32,13 @@ class EditPageState extends State<EditPage> {
   }
 
   Future<void> _loadQuizzes() async {
-    setState(() => isLoading = true);
     try {
       final loadedQuizzes = await _dbHelper.queryAllRows();
       setState(() {
         quizzes = loadedQuizzes;
-        isLoading = false;
       });
     } catch (e) {
       _showErrorDialog('Failed to load data: $e');
-      setState(() => isLoading = false);
     }
   }
 
@@ -76,20 +74,20 @@ class EditPageState extends State<EditPage> {
   Future<void> _insert() async {
     if (!_validateInputs()) return;
 
-    setState(() => isLoading = true);
     try {
-      final optionsList = [
-        option1Controller.text.trim(),
-        option2Controller.text.trim(),
-        option3Controller.text.trim(),
-        option4Controller.text.trim(),
+      final optionControllers = [
+        option1Controller,
+        option2Controller,
+        option3Controller,
+        option4Controller
       ];
-      // 正解は選択されたoptionの内容
+      final optionsList = optionControllers
+          .map((controller) => controller.text.trim())
+          .toList();
       final answer = optionsList[selectedOptionIndex!];
 
       final quiz = Quiz(
         question: questionController.text.trim(),
-        // DBには"|"で区切って保存
         options: optionsList.join('|'),
         answer: answer,
       );
@@ -99,22 +97,22 @@ class EditPageState extends State<EditPage> {
       _showSnackBar('Question added');
     } catch (e) {
       _showErrorDialog('Failed to add question: $e');
-    } finally {
-      setState(() => isLoading = false);
     }
   }
 
   Future<void> _update(Quiz quiz) async {
     if (!_validateInputs()) return;
 
-    setState(() => isLoading = true);
     try {
-      final optionsList = [
-        option1Controller.text.trim(),
-        option2Controller.text.trim(),
-        option3Controller.text.trim(),
-        option4Controller.text.trim(),
+      final optionControllers = [
+        option1Controller,
+        option2Controller,
+        option3Controller,
+        option4Controller
       ];
+      final optionsList = optionControllers
+          .map((controller) => controller.text.trim())
+          .toList();
       final answer = optionsList[selectedOptionIndex!];
 
       final updatedQuiz = Quiz(
@@ -129,13 +127,10 @@ class EditPageState extends State<EditPage> {
       _showSnackBar('Question updated');
     } catch (e) {
       _showErrorDialog('Failed to update question: $e');
-    } finally {
-      setState(() => isLoading = false);
     }
   }
 
   Future<void> _delete(int id) async {
-    setState(() => isLoading = true);
     try {
       await _dbHelper.delete(id);
       await _loadQuizzes();
@@ -143,15 +138,12 @@ class EditPageState extends State<EditPage> {
       _showSnackBar('Question deleted');
     } catch (e) {
       _showErrorDialog('Failed to delete question: $e');
-    } finally {
-      setState(() => isLoading = false);
     }
   }
 
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _showErrorDialog(String message) {
@@ -162,9 +154,7 @@ class EditPageState extends State<EditPage> {
         content: Text(message),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
+              onPressed: () => Navigator.pop(context), child: const Text('OK')),
         ],
       ),
     );
@@ -179,9 +169,8 @@ class EditPageState extends State<EditPage> {
             'Are you sure you want to delete this question?\n\n${quiz.question}'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
@@ -194,32 +183,36 @@ class EditPageState extends State<EditPage> {
     );
   }
 
-  /// 入力欄へ既存のQuizデータをセットする
+  /// 既存のQuizデータを各フィールドにセットする
   void _populateFields(Quiz quiz) {
     questionController.text = quiz.question;
-    // 保存時はoptionsを"|"で結合しているので、splitして各コントローラーへ設定
     final optionsList = quiz.options.split('|');
-    if (optionsList.length != 4) {
+    final optionControllers = [
+      option1Controller,
+      option2Controller,
+      option3Controller,
+      option4Controller
+    ];
+    if (optionsList.length != optionControllers.length) {
       _showErrorDialog('The options format is invalid for this quiz.');
       return;
     }
-    option1Controller.text = optionsList[0];
-    option2Controller.text = optionsList[1];
-    option3Controller.text = optionsList[2];
-    option4Controller.text = optionsList[3];
-    // answerと各optionを比較し、一致するインデックスをselectedOptionIndexに設定
+    for (int i = 0; i < optionControllers.length; i++) {
+      optionControllers[i].text = optionsList[i];
+    }
     final index = optionsList.indexWhere((option) => option == quiz.answer);
     selectedOptionIndex = index >= 0 ? index : null;
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // 画面幅に応じたレイアウト切替（600px未満＝スマートフォン、600px以上＝PC）
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isMobile = screenWidth <= 600;
-
-    // 入力フォーム部分
-    Widget formWidget = Card(
+  /// 入力フォーム部分のウィジェット（共通）
+  Widget buildFormWidget() {
+    final optionControllers = [
+      option1Controller,
+      option2Controller,
+      option3Controller,
+      option4Controller
+    ];
+    return Card(
       elevation: 3,
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -227,7 +220,7 @@ class EditPageState extends State<EditPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // 質問入力
+              // 質問入力欄
               TextField(
                 controller: questionController,
                 decoration: const InputDecoration(
@@ -238,8 +231,8 @@ class EditPageState extends State<EditPage> {
                 maxLines: 2,
               ),
               const SizedBox(height: 16),
-              // 4つのOption入力欄＋ラジオボタン
-              for (int i = 0; i < 4; i++)
+              // 4つのオプション入力欄＋ラジオボタン
+              for (int i = 0; i < optionControllers.length; i++)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4.0),
                   child: Row(
@@ -255,13 +248,7 @@ class EditPageState extends State<EditPage> {
                       ),
                       Expanded(
                         child: TextField(
-                          controller: i == 0
-                              ? option1Controller
-                              : i == 1
-                                  ? option2Controller
-                                  : i == 2
-                                      ? option3Controller
-                                      : option4Controller,
+                          controller: optionControllers[i],
                           decoration: InputDecoration(
                             labelText: 'Option ${i + 1}',
                             border: const OutlineInputBorder(),
@@ -278,8 +265,7 @@ class EditPageState extends State<EditPage> {
                   ElevatedButton.icon(
                     icon: const Icon(Icons.add),
                     label: const Text('Add'),
-                    onPressed:
-                        !isLoading && selectedQuiz == null ? _insert : null,
+                    onPressed: selectedQuiz == null ? _insert : null,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
                       foregroundColor: Colors.white,
@@ -288,7 +274,7 @@ class EditPageState extends State<EditPage> {
                   ElevatedButton.icon(
                     icon: const Icon(Icons.edit),
                     label: const Text('Update'),
-                    onPressed: !isLoading && selectedQuiz != null
+                    onPressed: selectedQuiz != null
                         ? () => _update(selectedQuiz!)
                         : null,
                   ),
@@ -299,9 +285,11 @@ class EditPageState extends State<EditPage> {
         ),
       ),
     );
+  }
 
-    // クイズ一覧部分
-    Widget listWidget = Card(
+  /// クイズ一覧部分のウィジェット（共通）
+  Widget buildListWidget(double listHeight) {
+    return Card(
       elevation: 3,
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -310,23 +298,18 @@ class EditPageState extends State<EditPage> {
           children: [
             Text(
               'Questions List (${quizzes.length})',
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            Expanded(
+            SizedBox(
+              height: listHeight,
               child: quizzes.isEmpty
-                  ? const Center(
-                      child: Text('No questions registered'),
-                    )
+                  ? const Center(child: Text('No questions registered'))
                   : ListView.separated(
                       itemCount: quizzes.length,
                       separatorBuilder: (_, __) => const Divider(),
                       itemBuilder: (context, index) {
                         final quiz = quizzes[index];
-                        // オプションを"|"で分割してリスト表示
                         final optionsList = quiz.options.split('|');
                         return ListTile(
                           title: Text(
@@ -341,34 +324,28 @@ class EditPageState extends State<EditPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               for (int i = 0; i < optionsList.length; i++)
-                                Text('${i + 1}. ${optionsList[i]}'
-                                    '${optionsList[i] == quiz.answer ? " (Answer)" : ""}'),
+                                Text(
+                                    '${i + 1}. ${optionsList[i]}${optionsList[i] == quiz.answer ? " (Answer)" : ""}'),
                             ],
                           ),
-                          leading: CircleAvatar(
-                            child: Text('${index + 1}'),
-                          ),
+                          leading: CircleAvatar(child: Text('${index + 1}')),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               IconButton(
                                 icon: const Icon(Icons.edit),
-                                onPressed: !isLoading
-                                    ? () {
-                                        setState(() {
-                                          selectedQuiz = quiz;
-                                          _populateFields(quiz);
-                                        });
-                                      }
-                                    : null,
+                                onPressed: () {
+                                  setState(() {
+                                    selectedQuiz = quiz;
+                                    _populateFields(quiz);
+                                  });
+                                },
                                 tooltip: 'Edit',
                               ),
                               IconButton(
                                 icon: const Icon(Icons.delete),
                                 color: Colors.red,
-                                onPressed: !isLoading
-                                    ? () => _showDeleteConfirmDialog(quiz)
-                                    : null,
+                                onPressed: () => _showDeleteConfirmDialog(quiz),
                                 tooltip: 'Delete',
                               ),
                             ],
@@ -384,7 +361,14 @@ class EditPageState extends State<EditPage> {
         ),
       ),
     );
+  }
 
+  /// 各画面ごとにレイアウトを実装するための抽象メソッド
+  Widget buildLayout(
+      BuildContext context, Widget formWidget, Widget listWidget);
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Edit Questions'),
@@ -396,50 +380,16 @@ class EditPageState extends State<EditPage> {
           ),
         ],
       ),
-      // Scaffoldにこのプロパティを設定（trueがデフォルトなので省略可能ですが、明示的に設定してもOK）
       resizeToAvoidBottomInset: true,
-      body: SingleChildScrollView(
-        // キーボードが出たときの高さ分だけ下部に余白を追加
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-          left: 16.0,
-          right: 16.0,
-          top: 16.0,
-        ),
-        child: Stack(
-          children: [
-            // 既存のウィジェットツリー
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16.0),
-              child: isMobile
-                  ? Column(
-                      children: [
-                        formWidget,
-                        const SizedBox(height: 16),
-                        SizedBox(
-                          // キーボード表示時にリスト部分がオーバーフローしないように高さを調整
-                          height: MediaQuery.of(context).size.height * 0.4,
-                          child: listWidget,
-                        ),
-                      ],
-                    )
-                  : Row(
-                      children: [
-                        Expanded(flex: 1, child: formWidget),
-                        const SizedBox(width: 16),
-                        Expanded(flex: 1, child: listWidget),
-                      ],
-                    ),
-            ),
-            if (isLoading)
-              Container(
-                color: const Color.fromRGBO(0, 0, 0, 0.26),
-                child: const Center(
-                  child: CircularProgressIndicator(),
-                ),
-              ),
-          ],
-        ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          double listHeight = constraints.maxHeight * 0.4;
+          final formWidget = buildFormWidget();
+          final listWidget = buildListWidget(listHeight);
+          return SingleChildScrollView(
+            child: buildLayout(context, formWidget, listWidget),
+          );
+        },
       ),
     );
   }
