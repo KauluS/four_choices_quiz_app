@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'edit_page_mobile.dart';
-import 'edit_page_desktop.dart';
+import 'editPage/edit_page_mobile.dart';
+import 'editPage/edit_page_desktop.dart';
 import 'quiz_page.dart';
 
 class HomePage extends StatelessWidget {

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:async';
 import 'database_helper.dart';
 import 'model.dart';
 
@@ -10,23 +9,36 @@ class QuizPage extends StatefulWidget {
   QuizPageState createState() => QuizPageState();
 }
 
-class QuizPageState extends State<QuizPage>
-    with SingleTickerProviderStateMixin {
+class QuizPageState extends State<QuizPage> with TickerProviderStateMixin {
   int score = 0;
   int currentQuestionIndex = 0;
-  double timeLeft = 1.0;
-  Timer? timer;
   List<Quiz> questions = [];
-  late AnimationController _animationController;
   bool isAnswered = false;
+
+  // 結果表示用アニメーション（回答後のアニメーション用）
+  late AnimationController _resultAnimationController;
+  // カウントダウン用の AnimationController（10秒間のカウントダウン）
+  late AnimationController _countdownController;
 
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
+    _resultAnimationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
     );
+    _countdownController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 10),
+    );
+
+    // カウントダウン終了時に時間切れダイアログを表示する
+    _countdownController.addStatusListener((status) {
+      if (status == AnimationStatus.completed && !isAnswered) {
+        showTimeUpDialog();
+      }
+    });
+
     fetchQuestions();
   }
 
@@ -45,7 +57,6 @@ class QuizPageState extends State<QuizPage>
         }
       }
     } catch (e) {
-      // Handle error if fetching fails
       if (mounted) {
         showDialog(
           context: context,
@@ -89,23 +100,10 @@ class QuizPageState extends State<QuizPage>
     );
   }
 
+  /// カウントダウンタイマーをリセットし開始する
   void startTimer() {
-    timeLeft = 1.0;
-    timer?.cancel();
-    timer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
-      if (mounted) {
-        setState(() {
-          timeLeft -= 0.01;
-          if (timeLeft <= 0) {
-            timeLeft = 0;
-            timer.cancel();
-            if (!isAnswered) {
-              showTimeUpDialog();
-            }
-          }
-        });
-      }
-    });
+    _countdownController.reset();
+    _countdownController.forward();
   }
 
   void showTimeUpDialog() {
@@ -121,7 +119,7 @@ class QuizPageState extends State<QuizPage>
           children: [
             Icon(Icons.timer_off, color: Colors.red),
             SizedBox(width: 8),
-            Text('Time\'s Up!'),
+            Text("Time's Up!"),
           ],
         ),
         content: const Text('You ran out of time for this question.'),
@@ -143,11 +141,11 @@ class QuizPageState extends State<QuizPage>
     if (currentQuestionIndex < questions.length - 1) {
       setState(() {
         currentQuestionIndex++;
-        _animationController.reset();
+        _resultAnimationController.reset();
       });
       startTimer();
     } else {
-      timer?.cancel();
+      _countdownController.stop();
       showEndDialog();
     }
   }
@@ -156,8 +154,8 @@ class QuizPageState extends State<QuizPage>
     if (isAnswered) return;
 
     isAnswered = true;
-    timer?.cancel();
-    bool isCorrect = selectedOption == questions[currentQuestionIndex].answer;
+    _countdownController.stop();
+    final isCorrect = selectedOption == questions[currentQuestionIndex].answer;
 
     if (isCorrect) {
       setState(() {
@@ -165,7 +163,7 @@ class QuizPageState extends State<QuizPage>
       });
     }
 
-    _animationController.forward();
+    _resultAnimationController.forward();
     showResultDialog(isCorrect, selectedOption);
   }
 
@@ -285,12 +283,12 @@ class QuizPageState extends State<QuizPage>
 
   @override
   Widget build(BuildContext context) {
-    // Adjust layout based on screen width (mobile or PC)
+    // 画面幅によりレイアウトを調整（モバイル or PC）
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = screenWidth < 600;
 
+    // クイズ取得中 or クイズが存在しない場合の表示
     if (questions.isEmpty) {
-      // While fetching questions or after no questions, show a loading view
       return Scaffold(
         body: Container(
           decoration: BoxDecoration(
@@ -320,7 +318,7 @@ class QuizPageState extends State<QuizPage>
     final question = questions[currentQuestionIndex];
     final options = question.options.split('|');
 
-    // Show error if options are not formatted as expected.
+    // エラー：選択肢が想定（4個）通りでない場合
     if (options.length != 4) {
       return Scaffold(
         body: Center(
@@ -332,7 +330,7 @@ class QuizPageState extends State<QuizPage>
       );
     }
 
-    double gridChildAspectRatio = isMobile ? 2.5 : 3.5;
+    final double gridChildAspectRatio = isMobile ? 2.5 : 3.5;
 
     return Scaffold(
       body: Container(
@@ -349,7 +347,7 @@ class QuizPageState extends State<QuizPage>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Header
+                // ヘッダー部分
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -376,17 +374,24 @@ class QuizPageState extends State<QuizPage>
                   ],
                 ),
                 const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: LinearProgressIndicator(
-                    value: timeLeft,
-                    backgroundColor: const Color.fromRGBO(255, 255, 255, 0.3),
-                    color: Colors.white,
-                    minHeight: 8,
-                  ),
+                // カウントダウンのプログレスインジケーター（AnimatedBuilder で更新）
+                AnimatedBuilder(
+                  animation: _countdownController,
+                  builder: (context, child) {
+                    return ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: LinearProgressIndicator(
+                        value: 1.0 - _countdownController.value,
+                        backgroundColor:
+                            const Color.fromRGBO(255, 255, 255, 0.3),
+                        color: Colors.white,
+                        minHeight: 8,
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 32),
-                // Question Card
+                // 質問カード
                 Card(
                   elevation: 8,
                   shape: RoundedRectangleBorder(
@@ -405,7 +410,7 @@ class QuizPageState extends State<QuizPage>
                   ),
                 ),
                 const SizedBox(height: 32),
-                // Options grid
+                // 選択肢グリッド
                 Expanded(
                   child: GridView.count(
                     crossAxisCount: 2,
@@ -450,8 +455,8 @@ class QuizPageState extends State<QuizPage>
 
   @override
   void dispose() {
-    timer?.cancel();
-    _animationController.dispose();
+    _countdownController.dispose();
+    _resultAnimationController.dispose();
     super.dispose();
   }
 }
