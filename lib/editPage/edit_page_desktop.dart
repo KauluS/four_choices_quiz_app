@@ -10,12 +10,13 @@ class EditPageDesktop extends EditPage {
 
 class EditPageDesktopState extends EditPageState<EditPageDesktop> {
   @override
-  Widget buildLayout(BuildContext context, Widget formWidget, Widget listWidget) {
+  Widget buildLayout(
+      BuildContext context, Widget formWidget, Widget listWidget) {
     // デスクトップ向けは横並び（Row）で表示
     return Row(
       children: [
         Expanded(child: formWidget),
-        const SizedBox(width: 16),
+        const SizedBox(width: 8),
         Expanded(child: listWidget),
       ],
     );
